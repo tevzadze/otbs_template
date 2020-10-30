@@ -1,5 +1,5 @@
 <h1 class="title-h1">
-            Web-Studio <span>Colibri</span>
+            Outside the box
         </h1>
         <p class="desc-1">
             This is our wonderful tamplate
@@ -21,6 +21,4 @@
                 </li>
             </ul>
         </p>
-        <p class="desc-1 footer-desc">
-            p.s. Sasha - pisyn
-        </p>
+        
