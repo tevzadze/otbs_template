@@ -45,7 +45,7 @@ gulp.task('styles', function() {
 // JS
 gulp.task('scripts', function() {
 	return gulp.src([
-		'app/libs/jquery/dist/jquery.min.js',
+		'app/libs/jquery/dist/jquery-3.5.1.min.js',
 		'app/js/common.js', // Always at the end
 		], { allowEmpty: true })
 	.pipe(concat('scripts.min.js'))
