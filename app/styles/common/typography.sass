@@ -1,0 +1,63 @@
+
+@import './variables'
+
+@mixin typography($color, $font-family, $font-size, $font-weight, $letter-spacing:0, $line-height: normal)
+	color: $color
+	font-family: $font-family
+	font-size: $font-size
+	font-weight: $font-weight
+	letter-spacing: $letter-spacing
+	line-height: $line-height
+
+@mixin mixed-lbl($args...)
+	@include typography($args...)
+
+// title h1
+@mixin title-h1
+	@include mixed-lbl(var(--color-white), var(--sub-font), var(--font-size-h1), var(--font-weight-5), var(--letter-spacing), var(--line-height-h1))
+
+// title h2
+@mixin title-h2
+	@include mixed-lbl(var(--color-white), var(--sub-font), var(--font-size-h2), var(--font-weight-5), var(--letter-spacing), var(--line-height-h2))
+
+// label1
+@mixin label-1
+	@include mixed-lbl(var(--color-white), var(--sub-font), var(--font-size-label1), var(--font-weight-5), var(--letter-spacing), var(--line-height-label-1))
+
+//desc-1
+@mixin desc-1
+	@include mixed-lbl(var(--color-white), var(--main-font), var(--font-size-desc1), var(--font-weight-4), var(--letter-spacing), var(--line-height-desc1))
+
+html, body, div, span,
+h1, h2, h3, h4, h5, h6, p, blockquote,
+a, small, strong, ul, li, form, label,
+article, footer, header, nav, section, input, textarea, button
+    &.center-text
+        text-align: center
+
+    &.left-text
+        text-align: left
+
+    &.right-text
+        text-align: right
+
+    &.cap-text
+        text-transform: capitalize
+
+    &.up-text
+        text-transform: uppercase
+
+    &.low-text
+        text-transform: lowercase
+
+    &.title-h1
+        @include title-h1
+
+    &.title-h2
+        @include title-h2
+
+    &.label-1
+        @include label-1
+
+    &.desc-1
+        @include desc-1

@@ -17,6 +17,9 @@
                     run <span>gulp</span>
                 </li>
                 <li>
+                    run <span>"gulp build" to build</span>
+                </li>
+                <li>
                     Congratulations you are beautiful!
                 </li>
             </ul>

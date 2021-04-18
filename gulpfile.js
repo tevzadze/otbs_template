@@ -1,129 +1,130 @@
-var syntax             = 'sass', // Syntax: sass or scss;
-		gulpVersion    = '4'; // Gulp version: 3 or 4
-		gmWatch        = false; // ON/OFF GraphicsMagick watching "img/_src" folder (true/false). Linux install gm: sudo apt update; sudo apt install graphicsmagick
+let preprocessor = 'sass', // Preprocessor (sass, less, styl); 'sass' also work with the Scss syntax in blocks/ folder.
+		fileswatch   = 'html,htm,txt,json,md,woff2' // List of files extensions for watching & hard reload
 
-var gulp              = require('gulp'),
-		gutil         = require('gulp-util' ),
-		sass          = require('gulp-sass'),
-		browserSync   = require('browser-sync'),
-		concat        = require('gulp-concat'),
-		uglify        = require('gulp-uglify'),
-		cleancss      = require('gulp-clean-css'),
-		rename        = require('gulp-rename'),
-		autoprefixer  = require('gulp-autoprefixer'),
-		notify        = require('gulp-notify'),
-		rsync         = require('gulp-rsync'),
-		imageResize   = require('gulp-image-resize'),
-		imagemin      = require('gulp-imagemin'),
-		del           = require('del'),
-		fileinclude   = require('gulp-file-include');
+const { src, dest, parallel, series, watch } = require('gulp')
+const browserSync  = require('browser-sync').create()
+const bssi         = require('browsersync-ssi')
+const ssi          = require('ssi')
+const webpack      = require('webpack-stream')
+const sass         = require('gulp-sass')
+const sassglob     = require('gulp-sass-glob')
+const less         = require('gulp-less')
+const lessglob     = require('gulp-less-glob')
+const styl         = require('gulp-stylus')
+const stylglob     = require("gulp-noop")
+const cleancss     = require('gulp-clean-css')
+const autoprefixer = require('gulp-autoprefixer')
+const rename       = require('gulp-rename')
+const imagemin     = require('gulp-imagemin')
+const newer        = require('gulp-newer')
+const rsync        = require('gulp-rsync')
+const del          = require('del')
 
-// Local Server
-gulp.task('browser-sync', function() {
-	browserSync({
+function browsersync() {
+	browserSync.init({
 		server: {
-			baseDir: 'app'
+			baseDir: 'app/',
+			middleware: bssi({ baseDir: 'app/', ext: '.html' })
 		},
+		ghostMode: { clicks: false },
 		notify: false,
-		// open: false,
-		// online: false, // Work Offline Without Internet Connection
-		// tunnel: true, tunnel: "projectname", // Demonstration page: http://projectname.localtunnel.me
+		online: true,
+		// tunnel: 'yousutename', // Attempt to use the URL https://yousutename.loca.lt
 	})
-});
+}
 
-// Sass|Scss Styles
-gulp.task('styles', function() {
-	return gulp.src('app/'+syntax+'/**/main.'+syntax+'')
-	.pipe(sass({ outputStyle: 'expanded' }).on("error", notify.onError()))
-	.pipe(rename({ suffix: '.min', prefix : '' }))
-	.pipe(autoprefixer(['last 15 versions']))
-	.pipe(cleancss( {level: { 1: { specialComments: 0 } } })) // Opt., comment out when debugging
-	.pipe(gulp.dest('app/css'))
-	.pipe(browserSync.stream())
-});
+function scripts() {
+	return src(['app/js/*.js', '!app/js/*.min.js'])
+		.pipe(webpack({
+			mode: 'production',
+			performance: { hints: false },
+			module: {
+				rules: [
+					{
+						test: /\.(js)$/,
+						exclude: /(node_modules)/,
+						loader: 'babel-loader',
+						query: {
+							presets: ['@babel/env'],
+							plugins: ['babel-plugin-root-import']
+						}
+					}
+				]
+			}
+		})).on('error', function handleError() {
+			this.emit('end')
+		})
+		.pipe(rename('app.min.js'))
+		.pipe(dest('app/js'))
+		.pipe(browserSync.stream())
+}
 
-// JS
-gulp.task('scripts', function() {
-	return gulp.src([
-		'app/libs/jquery/dist/jquery-3.5.1.min.js',
-		'app/js/common.js', // Always at the end
-		], { allowEmpty: true })
-	.pipe(concat('scripts.min.js'))
-	// .pipe(uglify()) // Mifify js (opt.)
-	.pipe(gulp.dest('app/js'))
-	.pipe(browserSync.reload({ stream: true }))
-});
+function styles() {
+	return src([`app/styles/main*.*`])
+		.pipe(eval(`${preprocessor}glob`)())
+		.pipe(eval(preprocessor)())
+		.pipe(autoprefixer({ overrideBrowserslist: ['last 10 versions'], grid: true }))
+		.pipe(cleancss({ level: { 1: { specialComments: 0 } },/* format: 'beautify' */ }))
+		.pipe(rename({ suffix: ".min" }))
+		.pipe(dest('app/css'))
+		.pipe(browserSync.stream())
+}
 
-// HTML Live Reload
-gulp.task('code', function() {
-	return gulp.src('app/**/*.html')
-	.pipe(browserSync.reload({ stream: true }))
-});
+function images() {
+	return src(['app/images/src/**/*'])
+		.pipe(newer('app/images/dist'))
+		.pipe(imagemin())
+		.pipe(dest('app/images/dist'))
+		.pipe(browserSync.stream())
+}
 
-gulp.task('include', function() {
-	 gulp.src(['app/*'])
- .pipe(fileinclude({
- prefix: '@@',
- basepath: '@file'
- }))
- .pipe(gulp.dest('./app'));
-});
+function buildcopy() {
+	return src([
+		'{app/js,app/css}/*.min.*',
+		'app/images/**/*.*',
+		'!app/images/src/**/*',
+		'app/fonts/**/*'
+	], { base: 'app/' })
+	.pipe(dest('dist'))
+}
 
+async function buildhtml() {
+	let includes = new ssi('app/', 'dist/', '/**/*.html')
+	includes.compile()
+	del('dist/parts', { force: true })
+}
 
+function cleandist() {
+	return del('dist/**/*', { force: true })
+}
 
-// Images @x1 & @x2 + Compression | Required graphicsmagick (sudo apt update; sudo apt install graphicsmagick)
-gulp.task('img1x', function() {
-	return gulp.src('app/img/_src/**/*.*')
-	.pipe(imageResize({ width: '50%' }))
-	.pipe(imagemin())
-	.pipe(gulp.dest('app/img/@1x/'))
-});
-gulp.task('img2x', function() {
-	return gulp.src('app/img/_src/**/*.*')
-	.pipe(imageResize({ width: '100%' }))
-	.pipe(imagemin())
-	.pipe(gulp.dest('app/img/@2x/'))
-});
+function deploy() {
+	return src('dist/')
+		.pipe(rsync({
+			root: 'dist/',
+			hostname: 'username@yousite.com',
+			destination: 'yousite/public_html/',
+			// clean: true, // Mirror copy with file deletion
+			include: [/* '*.htaccess' */], // Included files to deploy,
+			exclude: [ '**/Thumbs.db', '**/*.DS_Store' ],
+			recursive: true,
+			archive: true,
+			silent: false,
+			compress: true
+		}))
+}
 
-// Clean @*x IMG's
-gulp.task('cleanimg', function() {
-	return del(['app/img/@*'], { force:true })
-});
+function startwatch() {
+	watch(`app/styles/${preprocessor}/**/*`, { usePolling: true }, styles)
+	watch(['app/js/**/*.js', '!app/js/**/*.min.js'], { usePolling: true }, scripts)
+	watch('app/images/src/**/*.{jpg,jpeg,png,webp,svg,gif}', { usePolling: true }, images)
+	watch(`app/**/*.{${fileswatch}}`, { usePolling: true }).on('change', browserSync.reload)
+}
 
-// If Gulp Version 3
-if (gulpVersion == 3) {
-
-	// Img Processing Task for Gulp 3
-	gulp.task('img', ['img1x', 'img2x']);
-	
-	var taskArr = ['styles', 'scripts', 'browser-sync'];
-	gmWatch && taskArr.unshift('img');
-
-	gulp.task('watch', taskArr, function() {
-		gulp.watch('app/'+syntax+'/**/*.'+syntax+'', ['styles']);
-		gulp.watch(['libs/**/*.js', 'app/js/common.js'], ['scripts']);
-		gulp.watch('app/**/*.html', gulp.parallel('include'));
-		gulp.watch('app/**/*.html', ['code']);
-		gmWatch && gulp.watch('app/img/_src/**/*', ['img']);
-	});
-	gulp.task('default', ['watch']);
-
-};
-
-// If Gulp Version 4
-if (gulpVersion == 4) {
-
-	// Img Processing Task for Gulp 4
-	gulp.task('img', gulp.parallel('img1x', 'img2x'));
-
-	gulp.task('watch', function() {
-		gulp.watch('app/'+syntax+'/**/*.'+syntax+'', gulp.parallel('styles'));
-		gulp.watch(['libs/**/*.js', 'app/js/common.js'], gulp.parallel('scripts'));
-		
-		gulp.watch('app/**/*.html', gulp.parallel('code'));
-		gmWatch && gulp.watch('app/img/_src/**/*', gulp.parallel('img')); // GraphicsMagick watching image sources if allowed.
-	});
-	gmWatch ? gulp.task('default', gulp.parallel('img', 'styles', 'scripts', 'browser-sync', 'watch')) 
-					: gulp.task('default', gulp.parallel('styles', 'scripts', 'browser-sync', 'watch'));
-
-};
+exports.scripts = scripts
+exports.styles  = styles
+exports.images  = images
+exports.deploy  = deploy
+exports.assets  = series(scripts, styles, images)
+exports.build   = series(cleandist, scripts, styles, images, buildcopy, buildhtml)
+exports.default = series(scripts, styles, images, parallel(browsersync, startwatch))
